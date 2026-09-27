@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
 from src.utils.paths import dir_size, is_hard_excluded
 
 _CHATROOM_RE = re.compile(r"[\w\-\.]+@chatroom")
@@ -107,6 +107,8 @@ def classify_session(folder_name: str, id_map: dict[str, tuple[str, str]]) -> tu
 
 class WeChatScanner(Scanner):
     name = "微信（可定制）"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
 
     def _account_dirs(self) -> list[Path]:
         home = Path.home()
@@ -144,6 +146,8 @@ class WeChatScanner(Scanner):
         recommendation: Recommendation,
         reason: str,
         cancel_flag: dict | None,
+        deletable: bool = True,
+        protection_reason: str = "",
     ) -> None:
         if not path.exists() or is_hard_excluded(path):
             return
@@ -160,6 +164,8 @@ class WeChatScanner(Scanner):
                 recommendation=recommendation,
                 reason=reason,
                 detail=detail,
+                deletable=deletable,
+                protection_reason=protection_reason,
             )
         )
 
@@ -354,6 +360,8 @@ class WeChatScanner(Scanner):
                     recommendation=Recommendation.NOT_RECOMMENDED,
                     reason="删除会导致本地聊天记录丢失，仅在确定不需要时勾选",
                     cancel_flag=cancel_flag,
+                    deletable=False,
+                    protection_reason="聊天数据库属于用户数据，请使用微信自身工具处理",
                 )
 
             if progress:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
 from src.utils.paths import dir_size, is_hard_excluded
 
 
@@ -11,6 +11,23 @@ class AppJunkScanner(Scanner):
     """其它软件缓存（微信明细已拆到「微信（可定制）」扫描器）。"""
 
     name = "软件缓存与聊天附件"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
+    _REPORT_ONLY_LABELS = {
+        "微信程序缓存 Roaming",
+        "微信 xwechat 程序缓存",
+        "QQ 缓存",
+        "钉钉缓存",
+        "飞书缓存",
+        "企业微信",
+        "Steam 本地数据",
+        "Telegram Cache",
+        "百度网盘缓存",
+        "迅雷缓存",
+        "Sogou 输入法",
+        "Edge 更新包",
+        "Google 更新包",
+    }
 
     def _fixed_targets(self) -> list[tuple[str, Path, Recommendation, str]]:
         home = Path.home()
@@ -101,6 +118,10 @@ class AppJunkScanner(Scanner):
             if path.exists() and not is_hard_excluded(path):
                 size = dir_size(path, cancel_flag, max_seconds=6.0)
                 if size > 0:
+                    report_only = label in self._REPORT_ONLY_LABELS
+                    if report_only:
+                        reco = Recommendation.NOT_RECOMMENDED
+                        reason = f"{reason}；整目录尚未拆分为明确缓存子目录，仅报告不直接删除"
                     items.append(
                         CleanItem.make(
                             id=f"appjunk:{label}",
@@ -109,6 +130,8 @@ class AppJunkScanner(Scanner):
                             size_bytes=size,
                             recommendation=reco,
                             reason=f"{label}：{reason}",
+                            deletable=not report_only,
+                            protection_reason="应用数据整目录，尚未拆分缓存范围" if report_only else "",
                         )
                     )
             if progress:

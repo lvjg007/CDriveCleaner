@@ -5,47 +5,40 @@ import time
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
-from src.utils.paths import is_hard_excluded, is_user_protected_library, looks_like_project_dir
+from src.scanners.base import ProgressCb, Scanner, SCOPE_DRIVE
+from src.utils import drives
+from src.utils.paths import is_hard_excluded, is_user_protected_library, looks_like_project_dir, mark_scan_partial
 
 DEFAULT_THRESHOLD = 100 * 1024 * 1024
 MAX_SECONDS = 25  # 覆盖下载/桌面/文档等，超时也返回已发现项
 MAX_ITEMS = 300
 
-_SKIP_DIR_NAMES = {
-    "Windows",
-    "WinSxS",
-    "System32",
-    "SysWOW64",
-    "Program Files",
-    "Program Files (x86)",
-    "$Recycle.Bin",
-    "System Volume Information",
-    "Recovery",
-    "Boot",
-    "PerfLogs",
-    "node_modules",
-    ".git",
-    ".hg",
-    ".svn",
-    ".venv",
-    "venv",
-    "__pycache__",
-    "WindowsApps",
-    "Packages",
-    "AppData",  # AppData 改由专用扫描器处理，这里不深爬
-}
+#: 盘根遍历时用共享跳过表（含 Windows / ProgramData / 工程目录等）。
+#: 大小写不敏感比较，见 ``drives.ROOT_SKIP_DIR_NAMES``。
+_SKIP_DIR_NAMES = drives.ROOT_SKIP_DIR_NAMES
 
 
 class LargeFilesScanner(Scanner):
     name = "大文件扫描"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_DRIVE
 
     def __init__(self, threshold: int = DEFAULT_THRESHOLD) -> None:
         self.threshold = threshold
 
     def _roots(self) -> list[Path]:
+        """按目标盘挑根目录。
+
+        用户盘：只看下载/桌面/文档这些用户真正在意的地方，不整盘遍历。
+        其它盘：数据盘没有「垃圾目录」约定，只能带跳过表从盘根走一遍。
+        """
         home = Path.home()
-        candidates = [
+        # 公共下载目录跟着用户目录所在的盘走，不能写死 C:。
+        # 写死的话，用户目录被搬到 D 盘时这里会指向 C 盘 ——
+        # ``roots_for_search_scanner`` 会把它过滤掉（跨盘候选一律丢），
+        # 于是公共下载目录就被静默漏掉了。按 home 推导才是对的。
+        public_downloads = home.parent / "Public" / "Downloads"
+        home_roots = [
             home / "Downloads",
             home / "下载",
             home / "Desktop",
@@ -54,20 +47,16 @@ class LargeFilesScanner(Scanner):
             home / "视频",
             home / "Documents",
             home / "文档",
-            Path(r"C:\Users\Public\Downloads"),
-            Path(r"C:\Temp"),
-            Path(r"C:\temp"),
+            public_downloads,
         ]
+        candidates = drives.roots_for_search_scanner(drives.target_drive(), home_roots)
         roots: list[Path] = []
-        seen: set[str] = set()
         for p in candidates:
             if not p.exists() or not p.is_dir() or is_hard_excluded(p):
                 continue
-            key = str(p).lower()
-            if key in seen:
-                continue
-            seen.add(key)
             roots.append(p)
+        # 去重交给 roots_for_search_scanner（它按规范化路径去重），
+        # 这里不再维护第二套 seen 集合 —— 两套去重规则迟早会分叉。
         return roots
 
     def scan(
@@ -86,6 +75,7 @@ class LargeFilesScanner(Scanner):
             if cancel_flag and cancel_flag.get("cancel"):
                 break
             if time.monotonic() - start > MAX_SECONDS:
+                mark_scan_partial(cancel_flag, self.name)
                 if progress:
                     progress(f"{self.name}（时限到，已返回部分结果）", 1.0)
                 break
@@ -96,11 +86,13 @@ class LargeFilesScanner(Scanner):
                 if cancel_flag and cancel_flag.get("cancel"):
                     break
                 if time.monotonic() - start > MAX_SECONDS:
+                    mark_scan_partial(cancel_flag, self.name)
                     break
                 visited += 1
                 keep = []
                 for d in dirnames:
-                    if d in _SKIP_DIR_NAMES:
+                    # 跳过表是小写，Windows 目录名大小写不固定，必须统一小写比较
+                    if d.lower() in _SKIP_DIR_NAMES:
                         continue
                     child = Path(dirpath) / d
                     if is_hard_excluded(child):

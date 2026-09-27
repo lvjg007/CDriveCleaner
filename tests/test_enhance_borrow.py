@@ -37,6 +37,8 @@ def test_dry_run_does_not_delete(tmp_path: Path):
     assert result.success_count == 1
     assert f.exists()
     assert result.removed_ids == []
+    assert result.freed_bytes == 0
+    assert result.estimated_bytes == 5
 
 
 def test_space_hogs_scanner_runs():

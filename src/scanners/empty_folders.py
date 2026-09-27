@@ -5,26 +5,32 @@ import time
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
-from src.utils.paths import is_hard_excluded, looks_like_project_dir
+from src.scanners.base import ProgressCb, Scanner, SCOPE_DRIVE
+from src.utils import drives
+from src.utils.paths import is_hard_excluded, looks_like_project_dir, mark_scan_partial
 
 _MAX_SECONDS = 20
 _MAX_ITEMS = 200
-_SKIP = {
-    "Windows", "System32", "SysWOW64", "WinSxS", "Program Files",
-    "Program Files (x86)", "$Recycle.Bin", "System Volume Information",
-    "node_modules", ".git", "Packages", "WindowsApps",
-}
+#: 盘根遍历时用共享跳过表（小写比较）。
+_SKIP = drives.ROOT_SKIP_DIR_NAMES
 
 
 class EmptyFolderScanner(Scanner):
     """借鉴 Scour/NeatDisk：查找空目录。"""
 
     name = "空目录"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_DRIVE
 
     def _roots(self) -> list[Path]:
+        """用户盘看下载/桌面/文档与临时目录；其它盘从盘根走一遍。
+
+        刻意不再写死 ``C:\\Temp``：目标盘是数据盘时，盘根遍历本来就覆盖它；
+        目标盘是用户盘时，``<用户盘>:\\Temp`` 由「系统临时文件」扫描器负责，
+        在这里再来一遍属于重复报。
+        """
         home = Path.home()
-        return [
+        home_roots = [
             home / "Downloads",
             home / "下载",
             home / "Desktop",
@@ -32,9 +38,12 @@ class EmptyFolderScanner(Scanner):
             home / "Documents",
             home / "文档",
             home / "AppData" / "Local" / "Temp",
-            Path(os.environ.get("TEMP", "")),
-            Path(r"C:\Temp"),
         ]
+        for name in ("TEMP", "TMP"):
+            value = os.environ.get(name, "").strip()
+            if value:
+                home_roots.append(Path(value))
+        return drives.roots_for_search_scanner(drives.target_drive(), home_roots)
 
     def scan(
         self,
@@ -58,11 +67,19 @@ class EmptyFolderScanner(Scanner):
                 if cancel_flag and cancel_flag.get("cancel"):
                     break
                 if time.monotonic() - start > _MAX_SECONDS:
+                    mark_scan_partial(cancel_flag, self.name)
                     break
                 p = Path(dirpath)
                 if p == root or is_hard_excluded(p):
                     continue
-                if any(part in _SKIP for part in p.parts):
+                # 只比对**相对根目录**的路径段。用绝对路径段会误伤：
+                # 跳过表里有 ``appdata``，而 ``%LOCALAPPDATA%\Temp`` 本身就是
+                # 合法的扫描根 —— 拿绝对路径比对会把整个根目录跳掉。
+                try:
+                    rel_parts = p.relative_to(root).parts
+                except ValueError:
+                    rel_parts = p.parts
+                if any(part.lower() in _SKIP for part in rel_parts):
                     continue
                 if looks_like_project_dir(p):
                     continue
@@ -87,6 +104,8 @@ class EmptyFolderScanner(Scanner):
                 if len(items) >= _MAX_ITEMS:
                     break
             if len(items) >= _MAX_ITEMS or time.monotonic() - start > _MAX_SECONDS:
+                if time.monotonic() - start > _MAX_SECONDS:
+                    mark_scan_partial(cancel_flag, self.name)
                 break
         if progress:
             progress(self.name, 1.0)

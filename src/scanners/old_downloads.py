@@ -4,7 +4,7 @@ import time
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
 from src.utils.paths import is_hard_excluded, looks_like_project_dir, safe_iter_files
 
 _DAYS = 90
@@ -13,6 +13,8 @@ _MIN_SIZE = 10 * 1024 * 1024  # 10MB，避免海量小文件
 
 class OldDownloadsScanner(Scanner):
     name = "下载目录长期未访问"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
 
     def _roots(self) -> list[Path]:
         home = Path.home()

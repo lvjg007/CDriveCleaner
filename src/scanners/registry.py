@@ -1,3 +1,4 @@
+from src.scanners.ai_tools import AiToolsScanner
 from src.scanners.app_junk import AppJunkScanner
 from src.scanners.base import Scanner
 from src.scanners.browser_cache import BrowserCacheScanner
@@ -7,6 +8,7 @@ from src.scanners.empty_folders import EmptyFolderScanner
 from src.scanners.extension_stats import ExtensionStatsScanner
 from src.scanners.game_caches import GameCacheScanner
 from src.scanners.gpu_caches import GpuCacheScanner
+from src.scanners.home_residue import HomeResidueScanner
 from src.scanners.installer_residue import InstallerResidueScanner
 from src.scanners.large_files import LargeFilesScanner
 from src.scanners.media_downloads import MediaDownloadsScanner
@@ -31,6 +33,8 @@ def all_scanners() -> list[Scanner]:
         SystemExtrasScanner(),
         GpuCacheScanner(),
         DevCacheScanner(),
+        AiToolsScanner(),
+        HomeResidueScanner(),
         OfficeCommsScanner(),
         GameCacheScanner(),
         InstallerResidueScanner(),

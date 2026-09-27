@@ -7,11 +7,16 @@ from collections import defaultdict
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
-from src.utils.paths import is_hard_excluded, looks_like_project_dir
+from src.scanners.base import ProgressCb, Scanner, SCOPE_DRIVE
+from src.utils import drives
+from src.utils.paths import is_hard_excluded, looks_like_project_dir, mark_scan_partial
 
 _MIN_SIZE = 1 * 1024 * 1024  # 1MB 以上才查重
 _MAX_SECONDS = 25
+#: 整盘查重（数据盘）时的时限。25 秒对 100GB+ 的盘连目录都走不完，
+#: 那样只会得到一份几乎没用的「部分结果」；给到 90 秒才有实际意义。
+#: 「快速扫描」本来就会跳过本扫描器，所以这个代价不会落在日常路径上。
+_MAX_SECONDS_WHOLE_DRIVE = 90
 _MAX_GROUPS = 80
 _HASH_READ = 1024 * 1024  # 先读 1MB 头；同头再全量
 
@@ -39,10 +44,13 @@ class DuplicateFilesScanner(Scanner):
     """借鉴 BitBroom/Scour：按大小分组 + 内容指纹找重复文件。"""
 
     name = "重复文件"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_DRIVE
 
     def _roots(self) -> list[Path]:
+        """用户盘只看下载/桌面/文档等；其它盘从盘根走一遍。"""
         home = Path.home()
-        return [
+        home_roots = [
             home / "Downloads",
             home / "下载",
             home / "Desktop",
@@ -54,6 +62,13 @@ class DuplicateFilesScanner(Scanner):
             home / "Pictures",
             home / "图片",
         ]
+        return drives.roots_for_search_scanner(drives.target_drive(), home_roots)
+
+    def _budget(self) -> float:
+        drive = drives.target_drive()
+        if drives.normalize_letter(drive) == drives.profile_drive():
+            return _MAX_SECONDS
+        return _MAX_SECONDS_WHOLE_DRIVE
 
     def scan(
         self,
@@ -64,6 +79,7 @@ class DuplicateFilesScanner(Scanner):
             progress(self.name, 0.0)
         by_size: dict[int, list[Path]] = defaultdict(list)
         roots = [r for r in self._roots() if r.exists()]
+        max_seconds = self._budget()
         start = time.monotonic()
 
         for ri, root in enumerate(roots):
@@ -76,11 +92,12 @@ class DuplicateFilesScanner(Scanner):
             for dirpath, dirnames, filenames in os.walk(root, topdown=True, onerror=lambda _e: None):
                 if cancel_flag and cancel_flag.get("cancel"):
                     break
-                if time.monotonic() - start > _MAX_SECONDS * 0.6:
+                if time.monotonic() - start > max_seconds * 0.6:
+                    mark_scan_partial(cancel_flag, self.name)
                     break
                 dirnames[:] = [
                     d for d in dirnames
-                    if d not in {".git", "node_modules", ".venv", "venv", "__pycache__"}
+                    if d.lower() not in drives.ROOT_SKIP_DIR_NAMES
                     and not is_hard_excluded(Path(dirpath) / d)
                 ]
                 for name in filenames:
@@ -103,7 +120,8 @@ class DuplicateFilesScanner(Scanner):
         for gi, (size, paths) in enumerate(candidates.items()):
             if cancel_flag and cancel_flag.get("cancel"):
                 break
-            if time.monotonic() - start > _MAX_SECONDS:
+            if time.monotonic() - start > max_seconds:
+                mark_scan_partial(cancel_flag, self.name)
                 break
             if progress and gi % 5 == 0:
                 progress(f"{self.name}: 比对 {gi}/{len(candidates)}", 0.6 + 0.4 * gi / total_groups)

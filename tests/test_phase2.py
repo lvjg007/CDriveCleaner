@@ -19,6 +19,13 @@ def test_empty_folder_scanner(tmp_path: Path, monkeypatch):
     assert not any(str(tmp_path / "with_file") == p for p in paths)
 
 
+def test_empty_folder_roots_ignore_blank_temp_environment(monkeypatch):
+    monkeypatch.setenv("TEMP", "")
+    monkeypatch.setenv("TMP", "")
+    roots = EmptyFolderScanner()._roots()
+    assert Path.cwd() not in roots
+
+
 def test_quick_hash_stable(tmp_path: Path):
     f = tmp_path / "a.bin"
     f.write_bytes(b"hello" * 1000)
@@ -51,3 +58,4 @@ def test_extension_stats(tmp_path: Path, monkeypatch):
     items = scanner.scan()
     assert any(".tmp" in i.detail for i in items)
     assert any(".mp4" in i.detail for i in items)
+    assert all(not i.deletable for i in items)

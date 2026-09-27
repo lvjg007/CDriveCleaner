@@ -6,8 +6,8 @@ from collections import defaultdict
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation, format_size
-from src.scanners.base import ProgressCb, Scanner
-from src.utils.paths import is_hard_excluded
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
+from src.utils.paths import is_hard_excluded, mark_scan_partial
 
 _MAX_SECONDS = 20
 _TOP_N = 20
@@ -17,6 +17,8 @@ class ExtensionStatsScanner(Scanner):
     """借鉴 WinDirStat 扩展名视图：汇总常见用户目录下各扩展名占用（报告项）。"""
 
     name = "扩展名占用汇总"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
 
     def _roots(self) -> list[Path]:
         home = Path.home()
@@ -56,6 +58,7 @@ class ExtensionStatsScanner(Scanner):
                 if cancel_flag and cancel_flag.get("cancel"):
                     break
                 if time.monotonic() - start > _MAX_SECONDS:
+                    mark_scan_partial(cancel_flag, self.name)
                     break
                 dirnames[:] = [
                     d for d in dirnames
@@ -99,6 +102,8 @@ class ExtensionStatsScanner(Scanner):
                     reason=reason,
                     detail=f"扩展名 {ext} · {counts[ext]} 个 · 合计 {format_size(total)}",
                     selected=False,
+                    deletable=False,
+                    protection_reason="扩展名汇总是报告项，路径仅用于定位最大样例",
                 )
             )
         if progress:

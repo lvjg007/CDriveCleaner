@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
 from src.utils.paths import dir_size, is_hard_excluded
 
 
@@ -11,6 +11,9 @@ class OfficeCommsScanner(Scanner):
     """借鉴 BitBroom/BleachBit：办公与通讯软件缓存。"""
 
     name = "办公与通讯缓存"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
+    _REPORT_ONLY_LABELS = {"Spotify Storage", "Spotify Data", "Adobe CEP Cache", "OneNote 备份缓存"}
 
     def _targets(self) -> list[tuple[str, Path, Recommendation, str]]:
         home = Path.home()
@@ -22,12 +25,12 @@ class OfficeCommsScanner(Scanner):
             ("Teams Classic Cache", local / "Microsoft" / "Teams" / "Cache", Recommendation.RECOMMEND, "经典 Teams 缓存"),
             ("Teams Classic blob", local / "Microsoft" / "Teams" / "blob_storage", Recommendation.RECOMMEND, "Teams blob 缓存"),
             ("Zoom 缓存", roaming / "Zoom" / "data" / "WebviewCache", Recommendation.RECOMMEND, "Zoom WebView 缓存"),
-            ("Zoom logs", roaming / "Zoom" / "logs", Recommendation.RECOMMEND, "Zoom 日志"),
+            ("Zoom logs", roaming / "Zoom" / "logs", Recommendation.OPTIONAL, "Zoom 日志，可能用于故障排查"),
             ("Slack Cache", roaming / "Slack" / "Cache", Recommendation.RECOMMEND, "Slack 缓存"),
             ("Slack Code Cache", roaming / "Slack" / "Code Cache", Recommendation.RECOMMEND, "Slack 代码缓存"),
             ("Spotify Storage", local / "Spotify" / "Storage", Recommendation.OPTIONAL, "Spotify 下载缓存（可能含离线歌）"),
             ("Spotify Data", local / "Spotify" / "Data", Recommendation.OPTIONAL, "Spotify 数据缓存"),
-            ("OBS logs", roaming / "obs-studio" / "logs", Recommendation.RECOMMEND, "OBS 日志"),
+            ("OBS logs", roaming / "obs-studio" / "logs", Recommendation.OPTIONAL, "OBS 日志，可能用于故障排查"),
             ("Adobe Common", local / "Adobe" / "Acrobat" / "DC" / "Temp", Recommendation.RECOMMEND, "Acrobat 临时"),
             ("Adobe CEP Cache", roaming / "Adobe" / "CEP" / "extensions", Recommendation.OPTIONAL, "Adobe CEP（谨慎）"),
             ("OneNote 备份缓存", local / "Microsoft" / "OneNote", Recommendation.OPTIONAL, "OneNote 本地数据"),
@@ -68,14 +71,20 @@ class OfficeCommsScanner(Scanner):
             if path.exists() and not is_hard_excluded(path):
                 size = dir_size(path, cancel_flag, max_seconds=5.0)
                 if size > 0:
+                    report_only = label in self._REPORT_ONLY_LABELS
+                    if report_only:
+                        reco = Recommendation.NOT_RECOMMENDED
+                        reason = f"{reason}；目录可能包含用户数据，仅报告不直接删除"
                     items.append(
                         CleanItem.make(
-                            id=f"office:{label}",
+                            id=f"office:{label}:{path}",
                             category=self.name,
                             path=str(path),
                             size_bytes=size,
                             recommendation=reco,
                             reason=f"{label}：{reason}",
+                            deletable=not report_only,
+                            protection_reason="办公应用数据目录，尚未拆分缓存范围" if report_only else "",
                         )
                     )
             if progress:

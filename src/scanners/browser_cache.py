@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
 from src.utils.paths import dir_size, is_hard_excluded
 
 
 class BrowserCacheScanner(Scanner):
     name = "浏览器缓存"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
 
     def _profile_cache_dirs(self) -> list[tuple[str, Path]]:
         local = Path.home() / "AppData" / "Local"

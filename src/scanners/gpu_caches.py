@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
 from src.utils.paths import dir_size, is_hard_excluded
 
 
@@ -11,6 +11,8 @@ class GpuCacheScanner(Scanner):
     """借鉴 BitBroom：NVIDIA/AMD/Intel 着色器与驱动缓存。"""
 
     name = "GPU 着色器缓存"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
 
     def _targets(self) -> list[tuple[str, Path, Recommendation, str]]:
         local = Path.home() / "AppData" / "Local"

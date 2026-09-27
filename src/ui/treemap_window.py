@@ -3,15 +3,22 @@ from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 
-from src.models.items import CleanItem, format_size
+from src.models.items import CleanItem, effective_clean_targets, format_size
 from src.ui.treemap import COLORS, squarify
+
+
+def category_totals(items: list[CleanItem]) -> dict[str, int]:
+    """Return non-overlapping totals for actionable scan items."""
+    totals: dict[str, int] = {}
+    targets = effective_clean_targets([item for item in items if item.deletable])
+    for it in targets:
+        totals[it.category] = totals.get(it.category, 0) + max(0, it.size_bytes)
+    return totals
 
 
 def show_category_treemap(parent, items: list[CleanItem]) -> None:
     """弹出按分类汇总的占用矩形图。"""
-    totals: dict[str, int] = {}
-    for it in items:
-        totals[it.category] = totals.get(it.category, 0) + max(0, it.size_bytes)
+    totals = category_totals(items)
     data = sorted(totals.items(), key=lambda x: -x[1])
     if not data:
         return

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
 from src.utils.paths import dir_size, is_hard_excluded
 
 
@@ -11,6 +11,8 @@ class GameCacheScanner(Scanner):
     """借鉴 BitBroom：游戏平台着色器/下载缓存。"""
 
     name = "游戏平台缓存"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
 
     def _targets(self) -> list[tuple[str, Path, Recommendation, str]]:
         local = Path.home() / "AppData" / "Local"
@@ -18,10 +20,10 @@ class GameCacheScanner(Scanner):
         programdata = Path(r"C:\ProgramData")
         return [
             ("Steam htmlcache", local / "Steam" / "htmlcache", Recommendation.RECOMMEND, "Steam 内置浏览器缓存"),
-            ("Steam logs", local / "Steam" / "logs", Recommendation.RECOMMEND, "Steam 日志"),
+            ("Steam logs", local / "Steam" / "logs", Recommendation.OPTIONAL, "Steam 日志，可能用于故障排查"),
             ("Steam shadercache hint", local / "Steam" / "steamapps" / "shadercache", Recommendation.OPTIONAL, "Steam 着色器（在库目录时）"),
             ("Epic Cache", local / "EpicGamesLauncher" / "Saved" / "webcache_4430", Recommendation.RECOMMEND, "Epic 启动器缓存"),
-            ("Epic Logs", local / "EpicGamesLauncher" / "Saved" / "Logs", Recommendation.RECOMMEND, "Epic 日志"),
+            ("Epic Logs", local / "EpicGamesLauncher" / "Saved" / "Logs", Recommendation.OPTIONAL, "Epic 日志，可能用于故障排查"),
             ("EA Cache", local / "Electronic Arts" / "EA Desktop" / "CEF", Recommendation.RECOMMEND, "EA Desktop CEF 缓存"),
             ("Battle.net Cache", local / "Battle.net" / "BrowserCache", Recommendation.RECOMMEND, "战网浏览器缓存"),
             ("Ubisoft Cache", local / "Ubisoft Game Launcher" / "cache", Recommendation.RECOMMEND, "育碧缓存"),

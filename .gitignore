@@ -42,3 +42,7 @@ logs/
 .env
 .env.*
 !.env.example
+
+# Agent tooling state (local only — contains machine-specific paths)
+.workbuddy-ai/
+.memory/

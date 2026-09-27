@@ -1,0 +1,167 @@
+meta:
+  page_id: cleanup-list
+  page_name: 扫描结果与清理
+  surface: b_end
+  page_type: b_list_page
+  anti_slop: pass
+  design_plan_ref: design-plan.md
+  canvas:
+    width: 1400
+    height: 780
+  figma:
+    file_key: ""
+    frame_name: "P01-扫描结果与清理"
+    frame_node_id: ""
+
+shell:
+  type: none
+  title: CDriveCleaner · C 盘清理工具
+
+regions:
+  - id: overview_bar
+    type: summary_strip
+    label: 概览条（容量 + 权限 + 主题）
+    layout:
+      direction: row
+      gap: 16
+      padding: 12
+    components:
+      - kind: text
+        label: 标签
+        sample_value: C 盘容量
+      - kind: image
+        label: 语义容量条
+        sample_value: 已用 412.3 GB / 512.0 GB（80.5%）· 可用 99.7 GB
+      - kind: tag
+        label: 管理员徽标
+        sample_value: 管理员 ✓
+      - kind: button
+        label: 切换主题
+        variant: ghost
+
+  - id: toolbar
+    type: batch_actions
+    label: 分组工具条
+    layout:
+      direction: row
+      gap: 24
+      padding: 12
+    constraints:
+      primary_actions_max: 1
+    components:
+      - kind: button
+        label: 开始扫描
+        variant: primary
+      - kind: button
+        label: 取消
+        variant: ghost
+      - kind: button
+        label: 一键安全清理
+        variant: secondary
+      - kind: button
+        label: 清理勾选项
+        variant: danger
+      - kind: button
+        label: 深度清理
+        variant: danger
+      - kind: button
+        label: 模拟清理
+        variant: secondary
+      - kind: button
+        label: 占用图
+        variant: ghost
+      - kind: button
+        label: 导出 CSV
+        variant: ghost
+
+  - id: filter_bar
+    type: filter_bar
+    label: 选择与筛选条
+    layout:
+      direction: row
+      gap: 12
+      padding: 12
+    components:
+      - kind: button
+        label: 全选建议
+        variant: ghost
+      - kind: button
+        label: 全选建议+可选
+        variant: ghost
+      - kind: button
+        label: 全不选
+        variant: ghost
+      - kind: button
+        label: 反选
+        variant: ghost
+      - kind: select
+        label: 分类筛选
+        sample_value: 全部
+      - kind: button
+        label: 按大小
+        variant: ghost
+
+  - id: data_table
+    type: data_table
+    label: 扫描结果表
+    layout:
+      direction: column
+      gap: 4
+      padding: 4
+    components:
+      - kind: table_column
+        label: 选择
+        data_key: selected
+      - kind: table_column
+        label: 分类
+        data_key: category
+      - kind: table_column
+        label: 建议
+        data_key: advice
+      - kind: table_column
+        label: 大小
+        data_key: size
+      - kind: table_column
+        label: 权限
+        data_key: admin
+      - kind: table_column
+        label: 文件说明
+        data_key: detail
+      - kind: table_column
+        label: 原因
+        data_key: reason
+      - kind: table_column
+        label: 路径
+        data_key: path
+
+  - id: status_bar
+    type: status_bar
+    label: 状态栏
+    layout:
+      direction: row
+      gap: 16
+      padding: 8
+    components:
+      - kind: text
+        label: 已选合计
+        sample_value: 已选 12 项 · 合计 3.42 GB
+      - kind: text
+        label: 进度
+        sample_value: 扫描中 (7/24) 42%
+      - kind: text
+        label: 当前扫描器
+        sample_value: "正在扫描: 微信（可定制）"
+
+states:
+  - id: empty
+    label: 未扫描空态
+    description: 表格区替换为居中引导：一句价值主张 + 主按钮「开始扫描」+ 3 条安全承诺
+  - id: scanning
+    label: 扫描中
+    description: 状态栏显示当前扫描器与进度，清理类按钮禁用，扫描结果表保留上一次结果或空态
+  - id: cancelled
+    label: 扫描已取消
+    description: 状态栏红字提示，全部清理入口与勾选禁用
+  - id: partial
+    label: 部分结果
+    description: 状态栏提示达到扫描时限的分类，清理确认弹窗保留同样提醒

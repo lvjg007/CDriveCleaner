@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
-from src.utils.paths import dir_size, is_hard_excluded
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
+from src.utils.paths import is_hard_excluded
 
 
 class ThumbnailsScanner(Scanner):
     name = "缩略图缓存"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
 
     def scan(
         self,

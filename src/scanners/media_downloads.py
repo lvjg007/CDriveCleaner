@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.models.items import CleanItem, Recommendation
-from src.scanners.base import ProgressCb, Scanner
+from src.scanners.base import ProgressCb, Scanner, SCOPE_PROFILE
 from src.utils.paths import is_hard_excluded, looks_like_project_dir, safe_iter_files
 
 _VIDEO = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts", ".rmvb"}
@@ -17,6 +17,8 @@ _AUDIO_MIN = 5 * 1024 * 1024
 
 class MediaDownloadsScanner(Scanner):
     name = "下载的视频图片音频"
+    #: 见 base.SCOPE_* 说明
+    drive_scope = SCOPE_PROFILE
 
     def _roots(self) -> list[Path]:
         home = Path.home()
@@ -60,7 +62,8 @@ class MediaDownloadsScanner(Scanner):
                 except OSError:
                     continue
                 kind = ""
-                reco = Recommendation.RECOMMEND
+                # Media files are user content, even when stored in Downloads/Desktop.
+                reco = Recommendation.OPTIONAL
                 if ext in _VIDEO and size >= _VIDEO_MIN:
                     kind = "视频文件"
                 elif ext in _IMAGE and size >= _IMAGE_MIN:
@@ -71,8 +74,6 @@ class MediaDownloadsScanner(Scanner):
                     continue
                 # 文档/图片库里的标可选，下载/桌面建议删
                 low = str(root).lower()
-                if any(x in low for x in ("pictures", "图片", "music", "音乐", "videos", "视频")):
-                    reco = Recommendation.OPTIONAL
                 items.append(
                     CleanItem.make(
                         id=f"media:{f}",
